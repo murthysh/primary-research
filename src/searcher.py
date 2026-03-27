@@ -29,14 +29,17 @@ def _build_session() -> requests.Session:
     return session
 
 
-def build_queries(keyword: str) -> list[str]:
+def build_queries(keyword: str, domains: list[str] | None = None) -> list[str]:
     """Build one site-restricted Google query per authority domain.
 
     Appends filetype:pdf for domains in PDF_DOMAINS.
     All queries include after:2023-01-01 for server-side date pre-filtering.
+    If `domains` is provided, only those domains are queried; otherwise all
+    domains in AUTHORITY_DOMAINS are used.
     """
+    selected = domains if domains is not None else list(AUTHORITY_DOMAINS.keys())
     queries: list[str] = []
-    for domain in AUTHORITY_DOMAINS:
+    for domain in selected:
         query = f'site:{domain} "{keyword}" after:2023-01-01'
         if domain in PDF_DOMAINS:
             query += " filetype:pdf"

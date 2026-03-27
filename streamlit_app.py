@@ -11,6 +11,7 @@ from src.filter import (
     is_keyword_relevant,
     parse_and_validate_date,
 )
+from src.config import AUTHORITY_DOMAINS
 from src.models import CollectionError, ContentType, ResearchRecord, RunResult
 from src.searcher import build_queries, fetch_results
 from src.writer import build_dataframe, default_output_stem, to_csv_bytes, to_excel_bytes
@@ -65,6 +66,7 @@ def _run_pipeline(
     keyword: str,
     content_type_label: str,
     output_formats: list[str],
+    selected_sources: list[str],
 ) -> RunResult:
     """Run the full collection pipeline and return an in-memory RunResult."""
     api_key: str = st.secrets.get("SERPAPI_KEY", "")
@@ -82,7 +84,10 @@ def _run_pipeline(
         )
 
     content_type_filter: ContentType | None = _CONTENT_TYPE_MAP.get(content_type_label)
-    queries = build_queries(keyword)
+    # Map display names back to domain keys
+    name_to_domain = {v: k for k, v in AUTHORITY_DOMAINS.items()}
+    domains = [name_to_domain[name] for name in selected_sources if name in name_to_domain]
+    queries = build_queries(keyword, domains=domains if domains else None)
     total = len(queries)
     records = []
 
@@ -148,6 +153,7 @@ def _run_pipeline(
     filtered_records = filter_by_type(records, content_type_filter)
     df = build_dataframe(filtered_records)
     stem = default_output_stem(keyword)
+    st.session_state.run_df = df
 
     return RunResult(
         records_collected=len(filtered_records),
@@ -166,10 +172,18 @@ def _run_pipeline(
 st.title("Research Collector")
 st.caption("Collect high-authority research by keyword from Gartner, McKinsey, and more.")
 
+_ALL_SOURCES = list(AUTHORITY_DOMAINS.values())
+
 with st.form("research_form"):
     keyword = st.text_input("Keyword", placeholder="e.g. AI in healthcare")
     content_type_label = st.selectbox(
         "Content type", ["All", "Stats", "Survey", "Ebook"], index=0
+    )
+    selected_sources = st.multiselect(
+        "Sources to query",
+        options=_ALL_SOURCES,
+        default=_ALL_SOURCES,
+        help="Select which authority sources to search. Defaults to all 48.",
     )
     output_formats = st.multiselect(
         "Output formats", ["Excel", "CSV"], default=["Excel"]
@@ -178,11 +192,13 @@ with st.form("research_form"):
 
 if submitted and not keyword.strip():
     st.error("Please enter a keyword.")
+elif submitted and not selected_sources:
+    st.error("Please select at least one source.")
 elif submitted and not output_formats:
     st.error("Please select at least one output format.")
 elif submitted:
     with st.spinner("Running collection..."):
-        result = _run_pipeline(keyword.strip(), content_type_label, output_formats)
+        result = _run_pipeline(keyword.strip(), content_type_label, output_formats, selected_sources)
     st.session_state.run_result = result
 
 result: RunResult | None = st.session_state.get("run_result")
@@ -196,6 +212,21 @@ if result is not None:
         else:
             st.success(f"Collected {result.records_collected} records.")
 
+        # Results table
+        df = st.session_state.get("run_df")
+        if df is not None and not df.empty:
+            st.subheader("Results")
+            st.dataframe(
+                df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "URL": st.column_config.LinkColumn("URL"),
+                    "Keyword Match": st.column_config.CheckboxColumn("Keyword Match"),
+                },
+            )
+
+        # Download buttons
         col1, col2 = st.columns(2)
         if result.excel_bytes:
             col1.download_button(
