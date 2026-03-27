@@ -174,16 +174,20 @@ st.caption("Collect high-authority research by keyword from Gartner, McKinsey, a
 
 _ALL_SOURCES = list(AUTHORITY_DOMAINS.values())
 
+if "select_all" not in st.session_state:
+    st.session_state.select_all = False
+
 with st.form("research_form"):
     keyword = st.text_input("Keyword", placeholder="e.g. AI in healthcare")
     content_type_label = st.selectbox(
         "Content type", ["All", "Stats", "Survey", "Ebook"], index=0
     )
+    select_all = st.checkbox("Select all sources", value=st.session_state.select_all)
     selected_sources = st.multiselect(
         "Sources to query",
         options=_ALL_SOURCES,
-        default=_ALL_SOURCES,
-        help="Select which authority sources to search. Defaults to all 48.",
+        default=_ALL_SOURCES if select_all else [],
+        help="Select which authority sources to search, or tick 'Select all' above.",
     )
     output_formats = st.multiselect(
         "Output formats", ["Excel", "CSV"], default=["Excel"]
