@@ -182,13 +182,13 @@ with st.form("research_form"):
     content_type_label = st.selectbox(
         "Content type", ["All", "Stats", "Survey", "Ebook"], index=0
     )
-    select_all = st.checkbox("Select all sources", value=st.session_state.select_all)
     selected_sources = st.multiselect(
         "Sources to query",
         options=_ALL_SOURCES,
-        default=_ALL_SOURCES if select_all else [],
-        help="Select which authority sources to search, or tick 'Select all' above.",
+        default=_ALL_SOURCES if st.session_state.select_all else [],
+        help="Select which authority sources to search, or tick 'Select all' below.",
     )
+    select_all = st.checkbox("Select all sources", value=st.session_state.select_all)
     output_formats = st.multiselect(
         "Output formats", ["Excel", "CSV"], default=["Excel"]
     )
